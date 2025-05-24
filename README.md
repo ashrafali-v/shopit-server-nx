@@ -1,30 +1,87 @@
-# ShopitServerNx
+# ShopIt E-Commerce Microservices Platform
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A modern e-commerce platform built with NestJS microservices architecture and RabbitMQ message broker.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+## Architecture Overview
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/nest?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+This platform consists of:
 
-## Run tasks
+- **API Gateway**: Central entry point that routes requests to microservices
+- **Product Service**: Manages product catalog and inventory
+- **Order Service**: Handles order processing and management
+- **User Service**: Manages user accounts and authentication
+- **Shared Library**: Common code, DTOs, and configurations
 
-To run the dev server for your app, use:
+## Prerequisites
 
-```sh
-npx nx serve shoppit-server
+- Node.js (v18 or later)
+- Docker
+- pnpm (recommended) or npm
+
+## Getting Started
+
+1. Clone and Install
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd shopit-server-nx
+
+# Install dependencies
+pnpm install
 ```
 
-To create a production bundle:
+2. Start RabbitMQ
 
-```sh
-npx nx build shoppit-server
+```bash
+# Start RabbitMQ container
+docker compose -f docker-compose-dev.yml up -d
+
+# Verify RabbitMQ is running
+docker ps
 ```
 
-To see all available targets to run for a project, run:
+RabbitMQ Management UI will be available at:
 
-```sh
-npx nx show project shoppit-server
+- URL: http://localhost:15672
+- Username: guest
+- Password: guest
+
+3. Start the Microservices
+
+```bash
+# Start all services in parallel (recommended)
+npx nx run-many --target=serve --projects=gateway,product-service,order-service,user-service --parallel=4
+
+# Or start services individually in separate terminals:
+npx nx serve gateway
+npx nx serve product-service
+npx nx serve order-service
+npx nx serve user-service
 ```
+
+The API Gateway will be available at http://localhost:3000
+
+## Available API Endpoints
+
+### Products
+
+- `GET /products` - List all products
+- `GET /products/:id` - Get product by ID
+- `POST /products` - Create new product
+
+### Orders
+
+- `GET /orders` - List all orders
+- `GET /orders/:id` - Get order by ID
+- `POST /orders` - Create new order
+- `GET /users/:userId/orders` - Get user's orders
+
+### Users
+
+- `GET /users` - List all users
+- `GET /users/:id` - Get user by ID
+- `POST /users` - Create new user
 
 These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
 
@@ -89,13 +146,64 @@ Nx Console is an editor extension that enriches your developer experience. It le
 
 Learn more:
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/nest?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
+- [Learn more about this workspace setup](https://nx.dev/nx-api/nest?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 - [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 - [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 - [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
 
 And join the Nx community:
+
 - [Discord](https://go.nx.dev/community)
 - [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
 - [Our Youtube channel](https://www.youtube.com/@nxdevtools)
 - [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+
+## Development Commands
+
+### Managing Services
+
+```bash
+# Start individual service
+npx nx serve <service-name>  # e.g., npx nx serve gateway
+
+# Build service
+npx nx build <service-name>  # e.g., npx nx build product-service
+
+# Run tests
+npx nx test <service-name>   # e.g., npx nx test order-service
+```
+
+### Docker Commands
+
+```bash
+# Start RabbitMQ
+docker compose -f docker-compose-dev.yml up -d
+
+# Stop RabbitMQ
+docker compose -f docker-compose-dev.yml down
+
+# Check logs
+docker compose -f docker-compose-dev.yml logs -f
+
+# Restart RabbitMQ
+docker compose -f docker-compose-dev.yml restart
+```
+
+## Troubleshooting
+
+1. **RabbitMQ Connection Issues**
+
+   - Verify RabbitMQ is running: `docker ps`
+   - Check RabbitMQ logs: `docker compose -f docker-compose-dev.yml logs rabbitmq`
+   - Ensure RabbitMQ ports (5672, 15672) are not in use
+
+2. **Service Start-up Issues**
+
+   - Check if all dependencies are installed: `pnpm install`
+   - Verify RabbitMQ connection in service logs
+   - Try starting services one by one to identify the issue
+
+3. **API Gateway Issues**
+   - Ensure gateway service is running
+   - Check if all required microservices are up
+   - Verify ports are not in use (default: 3000)
