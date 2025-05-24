@@ -36,7 +36,20 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/shoppit-server-e2e/**/*"]
+      "exclude": [
+        "apps/shoppit-server-e2e/**/*",
+        "apps/gateway-e2e/**/*",
+        "apps/product-service-e2e/**/*",
+        "apps/order-service-e2e/**/*",
+        "apps/user-service-e2e/**/*"
+      ]
     }
-  ]
+  ],
+  "targetDefaults": {
+    "@nx/js:tsc": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    }
+  }
 }
