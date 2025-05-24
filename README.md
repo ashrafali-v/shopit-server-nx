@@ -189,6 +189,69 @@ docker compose -f docker-compose-dev.yml logs -f
 docker compose -f docker-compose-dev.yml restart
 ```
 
+### Stopping All Services
+
+```bash
+# Stop all running Nx processes
+pkill -f "nx serve"
+
+# Stop RabbitMQ and remove containers
+docker compose -f docker-compose-dev.yml down
+
+# Verify no services are running
+docker ps
+ps aux | grep "nx serve"
+```
+
+You can also press `Ctrl + C` in each terminal window where a service is running to stop them individually.
+
+### Restarting All Services
+
+Follow these steps in order to restart all services:
+
+1. **Start RabbitMQ First**
+
+```bash
+# Start RabbitMQ container
+docker compose -f docker-compose-dev.yml up -d
+
+# Verify RabbitMQ is running
+docker ps
+
+# Wait 10-15 seconds for RabbitMQ to fully initialize
+```
+
+2. **Start All Microservices**
+
+```bash
+# Method 1: Start all services in parallel (recommended)
+npx nx run-many --target=serve --projects=gateway,product-service,order-service,user-service --parallel=4
+
+# Method 2: Start services individually in separate terminals
+npx nx serve gateway
+npx nx serve product-service
+npx nx serve order-service
+npx nx serve user-service
+```
+
+3. **Verify Services**
+
+```bash
+# Check if RabbitMQ is running
+docker ps
+
+# Check if all services are running
+ps aux | grep "nx serve"
+
+# Test the API gateway
+curl http://localhost:3000
+```
+
+Services should now be available at:
+
+- Gateway API: http://localhost:3000
+- RabbitMQ Management UI: http://localhost:15672 (guest/guest)
+
 ## Troubleshooting
 
 1. **RabbitMQ Connection Issues**

@@ -28,15 +28,29 @@ export class AppService {
         );
       }
 
-      // Calculate total amount
+      // Get product prices and calculate total amount
+      const products = await firstValueFrom(
+        this.productService.send({ cmd: 'get_products' }, {})
+      );
+
+      const orderItems = createOrderDto.items.map(item => {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+        return {
+          ...item,
+          price: product.price
+        };
+      });
+
+      const totalAmount = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
       const order: Order = {
         id: this.currentOrderId++,
         userId: createOrderDto.userId,
-        items: createOrderDto.items.map(item => ({
-          ...item,
-          price: 0 // This will be updated with actual prices
-        })),
-        totalAmount: 0,
+        items: orderItems,
+        totalAmount,
         status: 'pending',
         createdAt: new Date()
       };
