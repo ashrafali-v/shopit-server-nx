@@ -4,13 +4,18 @@ import { Order, CreateOrderDto } from '@shopit/shared';
 import { RmqContext } from '@nestjs/microservices/ctx-host';
 import { Channel, Message } from 'amqplib';
 import { firstValueFrom } from 'rxjs';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AppService {
   private orders: Order[] = [];
   private currentOrderId = 1;
 
-  constructor(@Inject('PRODUCT_SERVICE') private productService: ClientProxy) {}
+  constructor(
+    @Inject('PRODUCT_SERVICE') private productService: ClientProxy,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
+  ) {}
 
   async createOrder(createOrderDto: CreateOrderDto, ctx: RmqContext): Promise<Order> {
     const channel = ctx.getChannelRef() as Channel;
@@ -75,6 +80,34 @@ export class AppService {
       await channel.nack(originalMsg, false, true);
       throw error;
     }
+  }
+
+  async getOrders(userId: number): Promise<Order[]> {
+    const cachedOrders = await this.cacheManager.get<Order[]>(`orders_user_${userId}`);
+    if (cachedOrders) {
+      return cachedOrders;
+    }
+
+    const orders = this.orders.filter(order => order.userId === userId);
+
+    await this.cacheManager.set(`orders_user_${userId}`, orders, { ttl: 300 });
+
+    return orders;
+  }
+
+  async getOrder(orderId: number): Promise<Order | undefined> {
+    const cachedOrder = await this.cacheManager.get<Order>(`order_${orderId}`);
+    if (cachedOrder) {
+      return cachedOrder;
+    }
+
+    const order = this.orders.find(order => order.id === orderId);
+
+    if (order) {
+      await this.cacheManager.set(`order_${orderId}`, order, { ttl: 300 });
+    }
+
+    return order;
   }
 
   getData(): { message: string } {
