@@ -1,11 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule } from '@nestjs/config';
 import { RABBITMQ_CONFIG } from '@shopit/shared';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthMiddleware } from './middleware/auth.middleware';
+import { RateLimitMiddleware } from './middleware/rate-limit.middleware';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Make config available everywhere
+      envFilePath: '.env',
+    }),
     ClientsModule.register([
       {
         name: 'PRODUCT_SERVICE',
@@ -39,4 +46,19 @@ import { AppService } from './app.service';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RateLimitMiddleware)
+      .forRoutes('*') // Apply rate limiting to all routes
+      .apply(AuthMiddleware)
+      .exclude(
+        { path: '/', method: RequestMethod.GET }, // API info
+        { path: '/users/login', method: RequestMethod.POST },
+        { path: '/users/register', method: RequestMethod.POST },
+        { path: '/products', method: RequestMethod.GET },
+        { path: '/products/:id', method: RequestMethod.GET }
+      )
+      .forRoutes('*'); // Apply auth to all routes except excluded ones
+  }
+}

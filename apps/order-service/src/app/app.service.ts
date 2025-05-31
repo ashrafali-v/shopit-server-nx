@@ -90,7 +90,7 @@ export class AppService {
 
     const orders = this.orders.filter(order => order.userId === userId);
 
-    await this.cacheManager.set(`orders_user_${userId}`, orders, { ttl: 300 });
+    await this.cacheManager.set(`orders_user_${userId}`, orders, 300);
 
     return orders;
   }
@@ -104,7 +104,7 @@ export class AppService {
     const order = this.orders.find(order => order.id === orderId);
 
     if (order) {
-      await this.cacheManager.set(`order_${orderId}`, order, { ttl: 300 });
+      await this.cacheManager.set(`order_${orderId}`, order, 300);
     }
 
     return order;
