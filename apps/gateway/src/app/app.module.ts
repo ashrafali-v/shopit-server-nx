@@ -51,14 +51,14 @@ export class AppModule implements NestModule {
     consumer
       .apply(RateLimitMiddleware)
       .forRoutes('*') // Apply rate limiting to all routes
-      .apply(AuthMiddleware)
-      .exclude(
-        { path: '/', method: RequestMethod.GET }, // API info
-        { path: '/users/login', method: RequestMethod.POST },
-        { path: '/users/register', method: RequestMethod.POST },
-        { path: '/products', method: RequestMethod.GET },
-        { path: '/products/:id', method: RequestMethod.GET }
-      )
-      .forRoutes('*'); // Apply auth to all routes except excluded ones
+      // .apply(AuthMiddleware)
+      // .exclude(
+      //   { path: '/', method: RequestMethod.GET }, // API info
+      //   { path: '/users/login', method: RequestMethod.POST },
+      //   { path: '/users/register', method: RequestMethod.POST },
+      //   { path: '/products', method: RequestMethod.GET },
+      //   { path: '/products/:id', method: RequestMethod.GET }
+      // )
+      // .forRoutes('*'); // Apply auth to all routes except excluded ones
   }
 }

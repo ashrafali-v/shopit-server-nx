@@ -16,8 +16,8 @@ export class AppController {
   }
 
   @MessagePattern({ cmd: 'get_orders' })
-  async getOrders(): Promise<Order[]> {
-    return this.appService.getOrders();
+  async getOrders(data: { userId?: number }): Promise<Order[]> {
+    return this.appService.getOrders(data?.userId);
   }
 
   @MessagePattern({ cmd: 'get_order' })
@@ -27,6 +27,6 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_user_orders' })
   async getUserOrders(data: { userId: number }): Promise<Order[]> {
-    return this.appService.getUserOrders(data.userId);
+    return this.appService.getOrders(data.userId);
   }
 }

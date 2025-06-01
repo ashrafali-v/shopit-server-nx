@@ -9,8 +9,40 @@ import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AppService {
-  private orders: Order[] = [];
-  private currentOrderId = 1;
+  private orders: Order[] = [
+    {
+      id: 1,
+      userId: 1,
+      items: [
+        { productId: 1, quantity: 2, price: 999.99 },
+        { productId: 2, quantity: 1, price: 699.99 }
+      ],
+      totalAmount: 2699.97,
+      status: 'completed',
+      createdAt: new Date('2025-05-30T10:00:00Z')
+    },
+    {
+      id: 2,
+      userId: 1,
+      items: [
+        { productId: 2, quantity: 3, price: 699.99 }
+      ],
+      totalAmount: 2099.97,
+      status: 'pending',
+      createdAt: new Date('2025-05-31T15:30:00Z')
+    },
+    {
+      id: 3,
+      userId: 2,
+      items: [
+        { productId: 1, quantity: 1, price: 999.99 }
+      ],
+      totalAmount: 999.99,
+      status: 'completed',
+      createdAt: new Date('2025-06-01T09:15:00Z')
+    }
+  ];
+  private currentOrderId = 4; // Set to next available ID
 
   constructor(
     @Inject('PRODUCT_SERVICE') private productService: ClientProxy,
@@ -82,17 +114,19 @@ export class AppService {
     }
   }
 
-  async getOrders(userId: number): Promise<Order[]> {
-    const cachedOrders = await this.cacheManager.get<Order[]>(`orders_user_${userId}`);
-    if (cachedOrders) {
-      return cachedOrders;
+  async getOrders(userId?: number): Promise<Order[]> {
+    if (userId) {
+      const cachedOrders = await this.cacheManager.get<Order[]>(`orders_user_${userId}`);
+      if (cachedOrders) {
+        return cachedOrders;
+      }
+
+      const orders = this.orders.filter(order => order.userId === userId);
+      await this.cacheManager.set(`orders_user_${userId}`, orders, 300);
+      return orders;
     }
-
-    const orders = this.orders.filter(order => order.userId === userId);
-
-    await this.cacheManager.set(`orders_user_${userId}`, orders, 300);
-
-    return orders;
+    
+    return this.orders;
   }
 
   async getOrder(orderId: number): Promise<Order | undefined> {

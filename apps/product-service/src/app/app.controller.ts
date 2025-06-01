@@ -20,12 +20,7 @@ export class AppController {
 
   @MessagePattern({ cmd: 'get_product' })
   async getProduct(data: { id: string }): Promise<Product | null> {
-    // Simulate database delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    
-    const productId = parseInt(data.id, 10);
-    const product = this.products.find((p) => p.id === productId);
-    return product || null;
+    return this.appService.getProduct(data.id);
   }
 
   @MessagePattern({ cmd: 'update_product' })
@@ -49,30 +44,7 @@ export class AppController {
       available: number;
     }>;
   }> {
-    // Simulate database delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    const insufficientItems: Array<{
-      productId: number;
-      requested: number;
-      available: number;
-    }> = [];
-
-    for (const item of items) {
-      const product = this.products.find((p) => p.id === item.productId);
-      if (!product || product.stock < item.quantity) {
-        insufficientItems.push({
-          productId: item.productId,
-          requested: item.quantity,
-          available: product?.stock || 0,
-        });
-      }
-    }
-
-    return {
-      success: insufficientItems.length === 0,
-      insufficientItems: insufficientItems.length > 0 ? insufficientItems : undefined,
-    };
+    return this.appService.checkStock(items);
   }
 
   @EventPattern('order_created')

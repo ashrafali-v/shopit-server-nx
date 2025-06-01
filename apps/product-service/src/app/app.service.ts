@@ -39,6 +39,20 @@ export class AppService {
     return this.products;
   }
 
+  async getProduct(id: string): Promise<Product | null> {
+    const productId = parseInt(id, 10);
+    const cachedProduct = await this.cacheManager.get<Product>(`product_${productId}`);
+    if (cachedProduct) {
+      return cachedProduct;
+    }
+
+    const product = this.products.find((p) => p.id === productId);
+    if (product) {
+      await this.cacheManager.set(`product_${productId}`, product, 60);
+    }
+    return product || null;
+  }
+
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
     // Simulate database delay
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -72,8 +86,40 @@ export class AppService {
     
     // Invalidate the products cache
     await this.cacheManager.del('all_products');
+    await this.cacheManager.del(`product_${id}`);
     
     return this.products[index];
+  }
+
+  async checkStock(items: Array<{ productId: number; quantity: number }>): Promise<{
+    success: boolean;
+    insufficientItems?: Array<{
+      productId: number;
+      requested: number;
+      available: number;
+    }>;
+  }> {
+    const insufficientItems: Array<{
+      productId: number;
+      requested: number;
+      available: number;
+    }> = [];
+
+    for (const item of items) {
+      const product = this.products.find((p) => p.id === item.productId);
+      if (!product || product.stock < item.quantity) {
+        insufficientItems.push({
+          productId: item.productId,
+          requested: item.quantity,
+          available: product?.stock || 0,
+        });
+      }
+    }
+
+    return {
+      success: insufficientItems.length === 0,
+      insufficientItems: insufficientItems.length > 0 ? insufficientItems : undefined,
+    };
   }
 
   async updateStock(items: Array<{ productId: number; quantity: number }>): Promise<void> {
@@ -84,6 +130,7 @@ export class AppService {
       const product = this.products.find(p => p.id === item.productId);
       if (product) {
         product.stock = item.quantity;
+        await this.cacheManager.del(`product_${item.productId}`);
       }
     }
     
@@ -100,6 +147,7 @@ export class AppService {
       this.products.splice(index, 1);
       // Invalidate the products cache
       await this.cacheManager.del('all_products');
+      await this.cacheManager.del(`product_${id}`);
     }
   }
 
