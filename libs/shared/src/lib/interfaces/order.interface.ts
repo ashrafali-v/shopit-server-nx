@@ -13,10 +13,4 @@ export interface Order {
   createdAt: Date;
 }
 
-export interface CreateOrderDto {
-  userId: number;
-  items: {
-    productId: number;
-    quantity: number;
-  }[];
-}
+export { CreateOrderDto } from '../dtos/create-order.dto';

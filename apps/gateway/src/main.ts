@@ -5,11 +5,15 @@
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 import { ValidationPipe } from './app/pipes/validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // Apply security headers with Helmet
+  app.use(helmet());
   
   // Apply global validation pipe
   app.useGlobalPipes(new ValidationPipe());
