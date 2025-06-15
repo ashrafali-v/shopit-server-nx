@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { RateLimitMiddleware } from './middleware/rate-limit.middleware';
+import { LoggerMiddleware } from './middleware/logger.middleware';
 
 @Module({
   imports: [
@@ -49,16 +50,19 @@ import { RateLimitMiddleware } from './middleware/rate-limit.middleware';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(RateLimitMiddleware)
-      .forRoutes('*') // Apply rate limiting to all routes
-      // .apply(AuthMiddleware)
-      // .exclude(
-      //   { path: '/', method: RequestMethod.GET }, // API info
-      //   { path: '/users/login', method: RequestMethod.POST },
-      //   { path: '/users/register', method: RequestMethod.POST },
-      //   { path: '/products', method: RequestMethod.GET },
-      //   { path: '/products/:id', method: RequestMethod.GET }
-      // )
-      // .forRoutes('*'); // Apply auth to all routes except excluded ones
+      .apply(LoggerMiddleware, RateLimitMiddleware)
+      .forRoutes('*'); // Apply logging and rate limiting to all routes
+      
+    // Uncomment to enable authentication
+    // consumer
+    //   .apply(AuthMiddleware)
+    //   .exclude(
+    //     { path: '/', method: RequestMethod.GET }, // API info
+    //     { path: '/users/login', method: RequestMethod.POST },
+    //     { path: '/users/register', method: RequestMethod.POST },
+    //     { path: '/products', method: RequestMethod.GET },
+    //     { path: '/products/:id', method: RequestMethod.GET }
+    //   )
+    //   .forRoutes('*');
   }
 }

@@ -7,10 +7,15 @@ A modern e-commerce platform built with NestJS microservices architecture and Ra
 This platform consists of:
 
 - **API Gateway**: Central entry point that routes requests to microservices
-- **Product Service**: Manages product catalog and inventory
+- **Product Service**: Manages product catalog and inventory with Redis caching
 - **Order Service**: Handles order processing and management
 - **User Service**: Manages user accounts and authentication
 - **Shared Library**: Common code, DTOs, and configurations
+
+Infrastructure:
+
+- **RabbitMQ**: Message broker for inter-service communication
+- **Redis**: Distributed caching layer for improved performance
 
 ## Prerequisites
 
@@ -31,21 +36,30 @@ cd shopit-server-nx
 pnpm install
 ```
 
-2. Start RabbitMQ
+2. Start Infrastructure Services
 
 ```bash
-# Start RabbitMQ container
+# Start RabbitMQ and Redis containers
 docker compose -f docker-compose-dev.yml up -d
 
-# Verify RabbitMQ is running
-docker ps
+# Verify services are running
+docker compose -f docker-compose-dev.yml ps
 ```
 
-RabbitMQ Management UI will be available at:
+Services available:
 
-- URL: http://localhost:15672
-- Username: guest
-- Password: guest
+RabbitMQ:
+
+- Management UI: http://localhost:15672
+- AMQP Port: 5672
+- Username: admin
+- Password: admin
+
+Redis:
+
+- Port: 6379
+- Health Check: Enabled (5s interval)
+- Persistence: Enabled (data directory mounted)
 
 3. Start the Microservices
 
@@ -176,17 +190,29 @@ npx nx test <service-name>   # e.g., npx nx test order-service
 ### Docker Commands
 
 ```bash
-# Start RabbitMQ
+# Start infrastructure services
 docker compose -f docker-compose-dev.yml up -d
 
-# Stop RabbitMQ
+# Stop all services
 docker compose -f docker-compose-dev.yml down
 
-# Check logs
+# Check logs for all services
 docker compose -f docker-compose-dev.yml logs -f
 
-# Restart RabbitMQ
+# Check logs for specific service
+docker compose -f docker-compose-dev.yml logs redis -f
+
+# Restart all services
 docker compose -f docker-compose-dev.yml restart
+
+# Health checks
+docker compose -f docker-compose-dev.yml ps     # Check container health status
+docker exec shopit-server-nx-redis-1 redis-cli ping    # Test Redis connection
+docker exec shopit-server-nx-redis-1 redis-cli info    # Get detailed Redis info
+
+# Monitor Redis
+docker exec shopit-server-nx-redis-1 redis-cli --stat  # Real-time Redis statistics
+docker exec shopit-server-nx-redis-1 redis-cli info memory  # Check Redis memory usage
 ```
 
 ### Stopping All Services
@@ -267,6 +293,14 @@ Services should now be available at:
    - Try starting services one by one to identify the issue
 
 3. **API Gateway Issues**
+
    - Ensure gateway service is running
    - Check if all required microservices are up
    - Verify ports are not in use (default: 3000)
+
+4. **Redis Issues**
+   - Check Redis container health: `docker compose -f docker-compose-dev.yml ps redis`
+   - Verify Redis connection: `docker exec shopit-server-nx-redis-1 redis-cli ping`
+   - Check Redis logs: `docker compose -f docker-compose-dev.yml logs redis`
+   - Verify Redis port (6379) is not in use
+   - Monitor memory usage: `docker exec shopit-server-nx-redis-1 redis-cli info memory`
