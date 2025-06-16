@@ -1,7 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule } from '@nestjs/config';
-import { RABBITMQ_CONFIG } from '@shopit/shared';
+import { RABBITMQ_CONFIG, PrismaService } from '@shopit/shared';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthMiddleware } from './middleware/auth.middleware';
@@ -45,7 +45,7 @@ import { LoggerMiddleware } from './middleware/logger.middleware';
     ]),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, PrismaService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -5,7 +5,15 @@
   "type": "commonjs",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "dependencies": {
     "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.4",
+    "pg": "^8.16.0",
+    "ts-node": "^10.9.1"
   }
 }

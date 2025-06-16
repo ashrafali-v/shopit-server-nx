@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Order, CreateOrderDto } from '@shopit/shared';
+import { Order, CreateOrderDto, PrismaService } from '@shopit/shared';
 import { RmqContext } from '@nestjs/microservices/ctx-host';
 import { Channel, Message } from 'amqplib';
 import { firstValueFrom } from 'rxjs';
@@ -9,44 +9,10 @@ import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AppService {
-  private orders: Order[] = [
-    {
-      id: 1,
-      userId: 1,
-      items: [
-        { productId: 1, quantity: 2, price: 999.99 },
-        { productId: 2, quantity: 1, price: 699.99 }
-      ],
-      totalAmount: 2699.97,
-      status: 'completed',
-      createdAt: new Date('2025-05-30T10:00:00Z')
-    },
-    {
-      id: 2,
-      userId: 1,
-      items: [
-        { productId: 2, quantity: 3, price: 699.99 }
-      ],
-      totalAmount: 2099.97,
-      status: 'pending',
-      createdAt: new Date('2025-05-31T15:30:00Z')
-    },
-    {
-      id: 3,
-      userId: 2,
-      items: [
-        { productId: 1, quantity: 1, price: 999.99 }
-      ],
-      totalAmount: 999.99,
-      status: 'completed',
-      createdAt: new Date('2025-06-01T09:15:00Z')
-    }
-  ];
-  private currentOrderId = 4; // Set to next available ID
-
   constructor(
     @Inject('PRODUCT_SERVICE') private productService: ClientProxy,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private prisma: PrismaService
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto, ctx: RmqContext): Promise<Order> {
@@ -76,24 +42,30 @@ export class AppService {
           throw new Error(`Product not found: ${item.productId}`);
         }
         return {
-          ...item,
+          productId: item.productId,
+          quantity: item.quantity,
           price: product.price
         };
       });
 
       const totalAmount = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-      const order: Order = {
-        id: this.currentOrderId++,
-        userId: createOrderDto.userId,
-        items: orderItems,
-        totalAmount,
-        status: 'pending',
-        createdAt: new Date()
-      };
-
-      // Store the order
-      this.orders.push(order);
+      // Create order with items in a transaction
+      const order = await this.prisma.$transaction(async (tx) => {
+        const newOrder = await tx.order.create({
+          data: {
+            userId: createOrderDto.userId,
+            totalAmount,
+            items: {
+              create: orderItems
+            }
+          },
+          include: {
+            items: true
+          }
+        });
+        return newOrder;
+      });
 
       // Emit event to update product stock
       await firstValueFrom(
@@ -121,21 +93,36 @@ export class AppService {
         return cachedOrders;
       }
 
-      const orders = this.orders.filter(order => order.userId === userId);
+      const orders = await this.prisma.order.findMany({
+        where: { userId },
+        include: {
+          items: true
+        }
+      });
+
       await this.cacheManager.set(`orders_user_${userId}`, orders, 300);
       return orders;
     }
     
-    return this.orders;
+    return this.prisma.order.findMany({
+      include: {
+        items: true
+      }
+    });
   }
 
-  async getOrder(orderId: number): Promise<Order | undefined> {
+  async getOrder(orderId: number): Promise<Order | null> {
     const cachedOrder = await this.cacheManager.get<Order>(`order_${orderId}`);
     if (cachedOrder) {
       return cachedOrder;
     }
 
-    const order = this.orders.find(order => order.id === orderId);
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true
+      }
+    });
 
     if (order) {
       await this.cacheManager.set(`order_${orderId}`, order, 300);

@@ -1,25 +1,22 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { User, CreateUserDto } from '@shopit/shared';
+import { User, CreateUserDto, PrismaService } from '@shopit/shared';
 
 @Injectable()
 export class AppService {
-  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
-
-  private users: User[] = [];
-  private currentUserId = 1;
+  constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private prisma: PrismaService
+  ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<User> {
-    // Simulate database delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const user = await this.prisma.user.create({
+      data: createUserDto
+    });
 
-    const user: User = {
-      id: this.currentUserId++,
-      ...createUserDto
-    };
-
-    this.users.push(user);
+    // Invalidate cache
+    await this.cacheManager.del('userList');
     return user;
   }
 
@@ -30,10 +27,9 @@ export class AppService {
       return cachedUsers;
     }
 
-    // Simulate database delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    this.cacheManager.set('userList', this.users);
-    return this.users;
+    const users = await this.prisma.user.findMany();
+    await this.cacheManager.set('userList', users);
+    return users;
   }
 
   async getUser(id: number): Promise<User | null> {
@@ -43,11 +39,14 @@ export class AppService {
       return cachedUser;
     }
 
-    // Simulate database delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    
-    const user = this.users.find((u) => u.id === id);
-    return user || null;
+    const user = await this.prisma.user.findUnique({
+      where: { id }
+    });
+
+    if (user) {
+      await this.cacheManager.set(`user_${id}`, user);
+    }
+    return user;
   }
 
   getData(): { message: string } {
