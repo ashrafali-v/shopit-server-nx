@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Param, Inject, HttpException, HttpStatus } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreateProductDto, Product, CreateOrderDto, Order, User, CreateUserDto } from '@shopit/shared';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 @Controller()
 export class AppController {
@@ -89,11 +89,26 @@ export class AppController {
   @Post('orders')
   async createOrder(@Body() createOrderDto: CreateOrderDto): Promise<Order> {
     try {
-      return await firstValueFrom(
-        this.orderService.send({ cmd: 'create_order' }, createOrderDto)
+      console.log(`Gateway: Starting order creation for user ${createOrderDto.userId}`);
+      const result = await firstValueFrom(
+        this.orderService.send({ cmd: 'create_order' }, createOrderDto).pipe(
+          timeout(30000) // 30 second timeout to match RabbitMQ TTL
+        )
       );
+      console.log(`Gateway: Order created successfully`);
+      return result;
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      console.error(`Gateway: Order creation failed:`, error);
+      if (error.name === 'TimeoutError') {
+        throw new HttpException(
+          'Order service is not responding. Please try again.',
+          HttpStatus.GATEWAY_TIMEOUT
+        );
+      }
+      throw new HttpException(
+        error.message || 'Failed to create order',
+        error.status || HttpStatus.BAD_REQUEST
+      );
     }
   }
 

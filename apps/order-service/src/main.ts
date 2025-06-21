@@ -10,20 +10,38 @@ import { AppModule } from './app/app.module';
 import { RABBITMQ_CONFIG } from '@shopit/shared';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
-    transport: Transport.RMQ,
-    options: {
-      urls: [RABBITMQ_CONFIG.url],
-      queue: RABBITMQ_CONFIG.queues.orders,
-      queueOptions: RABBITMQ_CONFIG.queueOptions,
-      prefetchCount: RABBITMQ_CONFIG.prefetchCount,
-    },
-  });
+  const logger = new Logger('OrderService');
+  
+  try {
+    const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+      transport: Transport.RMQ,
+      options: {
+        urls: [RABBITMQ_CONFIG.url],
+        queue: RABBITMQ_CONFIG.queues.orders,
+        queueOptions: RABBITMQ_CONFIG.queueOptions,
+        noAck: RABBITMQ_CONFIG.noAck,
+        prefetchCount: RABBITMQ_CONFIG.prefetchCount,
+        socketOptions: RABBITMQ_CONFIG.socketOptions
+      }
+    });
 
-  await app.listen();
-  Logger.log(
-    `🚀 Order service is listening to queue ${RABBITMQ_CONFIG.queues.orders}`
-  );
+    app.enableShutdownHooks();
+
+    // Error handling
+    process.on('unhandledRejection', (reason) => {
+      logger.error('Unhandled Promise Rejection:', reason);
+    });
+
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+    });
+
+    await app.listen();
+    logger.log(`🚀 Order service is listening to queue ${RABBITMQ_CONFIG.queues.orders}`);
+  } catch (error) {
+    logger.error('Failed to start order service:', error);
+    process.exit(1);
+  }
 }
 
 bootstrap();

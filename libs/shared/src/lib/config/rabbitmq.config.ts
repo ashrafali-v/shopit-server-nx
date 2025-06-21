@@ -7,10 +7,17 @@ export const RABBITMQ_CONFIG = {
     deadLetter: 'dead_letter_queue'
   },
   queueOptions: {
-    durable: true, // Queue survives broker restart
-    deadLetterExchange: 'dead_letter_exchange',
-    messageTtl: 1000 * 60 * 60, // 1 hour TTL
-    maxRetries: 3
+    durable: true,
+    arguments: {
+      'x-message-ttl': 30000,
+      'x-dead-letter-exchange': 'dead_letter_exchange',
+      'x-max-retries': 3
+    }
   },
-  prefetchCount: 1 // Process one message at a time
+  prefetchCount: 10,
+  socketOptions: {
+    heartbeatIntervalInSeconds: 5,
+    reconnectTimeInSeconds: 5
+  },
+  noAck: false
 };

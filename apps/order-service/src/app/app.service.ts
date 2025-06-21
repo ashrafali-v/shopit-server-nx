@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Order, OrderItem, CreateOrderDto, PrismaService } from '@shopit/shared';
 import { RmqContext } from '@nestjs/microservices/ctx-host';
@@ -9,6 +9,8 @@ import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   constructor(
     @Inject('PRODUCT_SERVICE') private productService: ClientProxy,
     @Inject('NOTIFICATION_SERVICE') private notificationClient: ClientProxy,
@@ -16,26 +18,33 @@ export class AppService {
     private prisma: PrismaService
   ) {}
 
-  private transformOrderItem(item: any): OrderItem {
+  private transformOrderItem(item: { productId: number; quantity: number; price: number | string | { toString(): string } }): OrderItem {
     return {
       productId: item.productId,
       quantity: item.quantity,
-      price: Number(item.price)
+      price: Number(item.price?.toString() || 0)
     };
   }
 
-  private transformOrder(order: any): Order {
+  private transformOrder(order: {
+    id: number;
+    userId: number;
+    totalAmount: number | string | { toString(): string };
+    status: Order['status'];
+    items: Array<{ productId: number; quantity: number; price: number | string | { toString(): string } }>;
+    createdAt: Date;
+  }): Order {
     return {
       id: order.id,
       userId: order.userId,
-      totalAmount: Number(order.totalAmount),
+      totalAmount: Number(order.totalAmount?.toString() || 0),
       status: order.status,
       items: order.items.map(item => this.transformOrderItem(item)),
       createdAt: order.createdAt
     };
   }
 
-  private transformOrders(orders: any[]): Order[] {
+  private transformOrders(orders: Array<Parameters<typeof this.transformOrder>[0]>): Order[] {
     return orders.map(order => this.transformOrder(order));
   }
 
@@ -65,18 +74,27 @@ export class AppService {
     const originalMsg = ctx.getMessage() as Message;
 
     try {
+      this.logger.log(`Starting order creation process for user ${createOrderDto.userId}`);
+
       // Check product stock before creating order
+      this.logger.debug('Checking product stock availability...');
       const stockCheckResult = await firstValueFrom(
         this.productService.send({ cmd: 'check_stock' }, createOrderDto.items)
       );
 
       if (!stockCheckResult.success) {
+        const itemDetails = stockCheckResult.insufficientItems
+          ?.map(item => `Product ${item.productId} (requested: ${item.requested}, available: ${item.available})`)
+          .join(', ');
+        this.logger.warn(`Stock check failed: ${itemDetails}`);
         throw new Error(
-          `Insufficient stock for items: ${JSON.stringify(stockCheckResult.insufficientItems)}`
+          `Insufficient stock for the following items: ${itemDetails}`
         );
       }
+      this.logger.debug('Stock check passed successfully');
 
       // Get product prices and calculate total amount
+      this.logger.debug('Fetching product details for pricing...');
       const products = await firstValueFrom(
         this.productService.send({ cmd: 'get_products' }, {})
       );
@@ -98,28 +116,92 @@ export class AppService {
         0
       );
 
-      const order = await this.prisma.order.create({
-        data: {
-          userId: createOrderDto.userId,
-          totalAmount,
-          status: 'pending',
-          items: {
-            create: orderItems
-          }
-        },
-        include: {
-          items: true
+      // Get user details and create order in a transaction
+      this.logger.log(`Starting order creation for user ${createOrderDto.userId}`);
+      const { user, order } = await this.prisma.$transaction(async (tx) => {
+        // Get user details
+        const user = await tx.user.findUnique({
+          where: { id: createOrderDto.userId }
+        });
+        
+        if (!user) {
+          throw new Error(`User not found: ${createOrderDto.userId}`);
         }
+
+        // Create order
+        const order = await tx.order.create({
+          data: {
+            userId: createOrderDto.userId,
+            totalAmount,
+            status: 'pending',
+            items: {
+              create: orderItems
+            }
+          },
+          include: {
+            items: true
+          }
+        });
+
+        return { user, order };
       });
 
-      // Acknowledge RabbitMQ message
-      channel.ack(originalMsg);
+      this.logger.log(`Order created successfully: ${order.id}`);
 
-      // Notify about order creation
-      //this.productService.emit('order_created', order);
+      try {
+        // Update product stock
+        this.logger.debug('Updating product stock...');
+        await firstValueFrom(
+          this.productService.send({ cmd: 'update_stock' }, {
+            items: order.items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity
+            })),
+            orderId: order.id
+          })
+        );
 
-      return this.transformOrder(order);
+        // Send order confirmation email
+        // this.logger.debug('Sending order confirmation email...');
+        // await firstValueFrom(
+        //   this.notificationClient.emit('order_confirmation_email', {
+        //     orderId: order.id,
+        //     customerName: user.name,
+        //     email: user.email,
+        //     items: order.items.map(item => ({
+        //       productId: item.productId,
+        //       quantity: item.quantity,
+        //       price: Number(item.price)
+        //     })),
+        //     totalAmount: Number(totalAmount)
+        //   })
+        // );
+
+        // Update order status to completed after stock update and email
+        this.logger.log(`Updating order status to completed: ${order.id}`);
+        const updatedOrder = await this.prisma.order.update({
+          where: { id: order.id },
+          data: { status: 'completed' },
+          include: { items: true }
+        });
+
+        this.logger.log(`Order ${order.id} processed successfully`);
+
+        // Acknowledge RabbitMQ message only after all operations are complete
+        channel.ack(originalMsg);
+
+        return this.transformOrder(updatedOrder);
+      } catch (innerError) {
+        // If stock update or notification fails, update order status to cancelled
+        this.logger.error(`Failed to process order ${order.id}:`, innerError);
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { status: 'cancelled' }
+        });
+        throw innerError;
+      }
     } catch (error) {
+      this.logger.error(`Error processing order: ${error.message}`, error.stack);
       // Reject RabbitMQ message on error
       channel.nack(originalMsg);
       throw error;

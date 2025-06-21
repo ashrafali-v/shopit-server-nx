@@ -123,7 +123,11 @@ export class AppService {
       items.map(item => 
         this.prisma.product.update({
           where: { id: item.productId },
-          data: { stock: item.quantity }
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
         })
       )
     );

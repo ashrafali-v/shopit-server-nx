@@ -1,8 +1,8 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, EventPattern, Ctx, RmqContext } from '@nestjs/microservices';
+import { MessagePattern } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { Product, CreateProductDto } from '@shopit/shared';
-import { Channel, Message } from 'amqplib';
+import { Message } from 'amqplib';
 
 @Controller()
 export class AppController {
@@ -47,32 +47,14 @@ export class AppController {
     return this.appService.checkStock(items);
   }
 
-  @EventPattern('order_created')
-  async handleOrderCreated(
+  @MessagePattern({ cmd: 'update_stock' })
+  async handleStockUpdate(
     data: {
       items: Array<{ productId: number; quantity: number }>;
       orderId: number;
     },
-    @Ctx() ctx: RmqContext,
   ): Promise<void> {
-    const channel = ctx.getChannelRef() as Channel;
-    const originalMsg = ctx.getMessage() as Message;
-
-    try {
-      await this.appService.updateStock(data.items);
-      await channel.ack(originalMsg);
-    } catch (error) {
-      // Get message retry count from headers
-      const retryCount = this.getRetryCount(originalMsg);
-      
-      if (retryCount < 3) {
-        await channel.nack(originalMsg, false, true);
-      } else {
-        await channel.nack(originalMsg, false, false);
-      }
-      
-      throw error;
-    }
+    await this.appService.updateStock(data.items);
   }
 
   private getRetryCount(msg: Message): number {
