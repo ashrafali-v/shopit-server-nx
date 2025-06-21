@@ -23,6 +23,23 @@ services:
       timeout: 5s
       retries: 3
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=shopit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d shopit"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
 volumes:
   rabbitmq_data:
   redis_data:
+  postgres_data:

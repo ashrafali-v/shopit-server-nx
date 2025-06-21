@@ -14,8 +14,8 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
       POSTGRES_DB: shopit
     ports:
       - "5432:5432"
