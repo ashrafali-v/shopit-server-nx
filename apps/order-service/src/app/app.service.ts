@@ -11,6 +11,7 @@ import { Cache } from 'cache-manager';
 export class AppService {
   constructor(
     @Inject('PRODUCT_SERVICE') private productService: ClientProxy,
+    @Inject('NOTIFICATION_SERVICE') private notificationClient: ClientProxy,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private prisma: PrismaService
   ) {}
@@ -74,6 +75,25 @@ export class AppService {
           items: order.items
         })
       );
+
+      // Get user details for email notification
+      const user = await this.prisma.user.findUnique({
+        where: { id: createOrderDto.userId },
+        select: { name: true, email: true }
+      });
+
+      if (user) {
+        // Emit order confirmation email event
+        await firstValueFrom(
+          this.notificationClient.emit('order_confirmation_email', {
+            orderId: order.id,
+            customerName: user.name,
+            email: user.email,
+            items: order.items,
+            totalAmount: totalAmount
+          })
+        );
+      }
 
       // Acknowledge the message
       await channel.ack(originalMsg);

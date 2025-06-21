@@ -3,7 +3,6 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import * as redisStore from 'cache-manager-redis-yet';
-import { RABBITMQ_CONFIG } from '@shopit/shared';
 import { PrismaService } from '@shopit/shared';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,12 +14,31 @@ import { AppService } from './app.service';
     }),
     ClientsModule.register([
       {
+        name: 'NOTIFICATION_SERVICE',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+          queue: 'notifications_queue',
+          queueOptions: {
+            durable: true,
+            deadLetterExchange: 'dead_letter_exchange',
+            deadLetterRoutingKey: 'dead_letter_queue',
+            messageTtl: 60000 // 1 minute
+          },
+        },
+      },
+      {
         name: 'PRODUCT_SERVICE',
         transport: Transport.RMQ,
         options: {
-          urls: [RABBITMQ_CONFIG.url],
-          queue: RABBITMQ_CONFIG.queues.products,
-          queueOptions: RABBITMQ_CONFIG.queueOptions,
+          urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
+          queue: 'products_queue',
+          queueOptions: {
+            durable: true,
+            deadLetterExchange: 'dead_letter_exchange',
+            deadLetterRoutingKey: 'dead_letter_queue',
+            messageTtl: 60000 // 1 minute
+          },
         },
       },
     ]),
