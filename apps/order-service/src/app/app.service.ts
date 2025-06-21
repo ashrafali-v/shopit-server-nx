@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Order, CreateOrderDto, PrismaService } from '@shopit/shared';
+import { Order, OrderItem, CreateOrderDto, PrismaService } from '@shopit/shared';
 import { RmqContext } from '@nestjs/microservices/ctx-host';
 import { Channel, Message } from 'amqplib';
 import { firstValueFrom } from 'rxjs';
@@ -15,6 +15,50 @@ export class AppService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private prisma: PrismaService
   ) {}
+
+  private transformOrderItem(item: any): OrderItem {
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      price: Number(item.price)
+    };
+  }
+
+  private transformOrder(order: any): Order {
+    return {
+      id: order.id,
+      userId: order.userId,
+      totalAmount: Number(order.totalAmount),
+      status: order.status,
+      items: order.items.map(item => this.transformOrderItem(item)),
+      createdAt: order.createdAt
+    };
+  }
+
+  private transformOrders(orders: any[]): Order[] {
+    return orders.map(order => this.transformOrder(order));
+  }
+
+  async getOrders(userId?: number): Promise<Order[]> {
+    const orders = await this.prisma.order.findMany({
+      where: userId ? { userId } : undefined,
+      include: {
+        items: true
+      }
+    });
+    return this.transformOrders(orders);
+  }
+
+  async getOrder(id: number): Promise<Order | null> {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: true
+      }
+    });
+
+    return order ? this.transformOrder(order) : null;
+  }
 
   async createOrder(createOrderDto: CreateOrderDto, ctx: RmqContext): Promise<Order> {
     const channel = ctx.getChannelRef() as Channel;
@@ -49,109 +93,36 @@ export class AppService {
         };
       });
 
-      const totalAmount = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      // Create order with items in a transaction
-      const order = await this.prisma.$transaction(async (tx) => {
-        const newOrder = await tx.order.create({
-          data: {
-            userId: createOrderDto.userId,
-            totalAmount,
-            items: {
-              create: orderItems
-            }
-          },
-          include: {
-            items: true
-          }
-        });
-        return newOrder;
-      });
-
-      // Emit event to update product stock
-      await firstValueFrom(
-        this.productService.emit('order_created', {
-          orderId: order.id,
-          items: order.items
-        })
+      const totalAmount = orderItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
       );
 
-      // Get user details for email notification
-      const user = await this.prisma.user.findUnique({
-        where: { id: createOrderDto.userId },
-        select: { name: true, email: true }
-      });
-
-      if (user) {
-        // Emit order confirmation email event
-        await firstValueFrom(
-          this.notificationClient.emit('order_confirmation_email', {
-            orderId: order.id,
-            customerName: user.name,
-            email: user.email,
-            items: order.items,
-            totalAmount: totalAmount
-          })
-        );
-      }
-
-      // Acknowledge the message
-      await channel.ack(originalMsg);
-
-      return order;
-    } catch (error) {
-      // Negative acknowledgment with requeue
-      await channel.nack(originalMsg, false, true);
-      throw error;
-    }
-  }
-
-  async getOrders(userId?: number): Promise<Order[]> {
-    if (userId) {
-      const cachedOrders = await this.cacheManager.get<Order[]>(`orders_user_${userId}`);
-      if (cachedOrders) {
-        return cachedOrders;
-      }
-
-      const orders = await this.prisma.order.findMany({
-        where: { userId },
+      const order = await this.prisma.order.create({
+        data: {
+          userId: createOrderDto.userId,
+          totalAmount,
+          status: 'pending',
+          items: {
+            create: orderItems
+          }
+        },
         include: {
           items: true
         }
       });
 
-      await this.cacheManager.set(`orders_user_${userId}`, orders, 300);
-      return orders;
+      // Acknowledge RabbitMQ message
+      channel.ack(originalMsg);
+
+      // Notify about order creation
+      //this.productService.emit('order_created', order);
+
+      return this.transformOrder(order);
+    } catch (error) {
+      // Reject RabbitMQ message on error
+      channel.nack(originalMsg);
+      throw error;
     }
-    
-    return this.prisma.order.findMany({
-      include: {
-        items: true
-      }
-    });
-  }
-
-  async getOrder(orderId: number): Promise<Order | null> {
-    const cachedOrder = await this.cacheManager.get<Order>(`order_${orderId}`);
-    if (cachedOrder) {
-      return cachedOrder;
-    }
-
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: true
-      }
-    });
-
-    if (order) {
-      await this.cacheManager.set(`order_${orderId}`, order, 300);
-    }
-
-    return order;
-  }
-
-  getData(): { message: string } {
-    return { message: 'Hello API' };
   }
 }

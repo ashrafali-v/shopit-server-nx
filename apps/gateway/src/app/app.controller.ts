@@ -65,6 +65,26 @@ export class AppController {
     }
   }
 
+  @Post('products/check-stock')
+  async checkProductStock(
+    @Body() items: Array<{ productId: number; quantity: number }>
+  ): Promise<{
+    success: boolean;
+    insufficientItems?: Array<{
+      productId: number;
+      requested: number;
+      available: number;
+    }>;
+  }> {
+    try {
+      return await firstValueFrom(
+        this.productService.send({ cmd: 'check_stock' }, items)
+      );
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   // Order endpoints
   @Post('orders')
   async createOrder(@Body() createOrderDto: CreateOrderDto): Promise<Order> {

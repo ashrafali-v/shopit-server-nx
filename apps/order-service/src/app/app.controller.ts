@@ -14,10 +14,17 @@ export class AppController {
   async createOrder(data: CreateOrderDto, @Ctx() ctx: RmqContext): Promise<Order> {
     return this.appService.createOrder(data, ctx);
   }
-
   @MessagePattern({ cmd: 'get_orders' })
-  async getOrders(data: { userId?: number }): Promise<Order[]> {
-    return this.appService.getOrders(data?.userId);
+  async getOrders(@Ctx() context: RmqContext) {
+    console.log('Received get_orders request');
+    try {
+      const orders = await this.appService.getOrders();
+      console.log('Retrieved orders:', orders);
+      return orders;
+    } catch (error) {
+      console.error('Error getting orders:', error);
+      throw error;
+    }
   }
 
   @MessagePattern({ cmd: 'get_order' })

@@ -10,19 +10,30 @@ export class AppService {
     private prisma: PrismaService
   ) {}
 
+  private transformProduct(product: any): Product {
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: Number(product.price),
+      stock: product.stock
+    };
+  }
+
+  private transformProducts(products: any[]): Product[] {
+    return products.map(product => this.transformProduct(product));
+  }
+
   async getProducts(): Promise<Product[]> {
-    // Try to get products from cache
     const cachedProducts = await this.cacheManager.get<Product[]>('all_products');
     if (cachedProducts) {
       return cachedProducts;
     }
 
-    // Get products from database
     const products = await this.prisma.product.findMany();
-
-    // Store in cache for 1 minute (60 seconds)
-    await this.cacheManager.set('all_products', products, 60);
-    return products;
+    const transformedProducts = this.transformProducts(products);
+    await this.cacheManager.set('all_products', transformedProducts, 60);
+    return transformedProducts;
   }
 
   async getProduct(id: string): Promise<Product | null> {
@@ -37,9 +48,11 @@ export class AppService {
     });
 
     if (product) {
-      await this.cacheManager.set(`product_${productId}`, product, 60);
+      const transformedProduct = this.transformProduct(product);
+      await this.cacheManager.set(`product_${productId}`, transformedProduct, 60);
+      return transformedProduct;
     }
-    return product;
+    return null;
   }
 
   async createProduct(createProductDto: CreateProductDto): Promise<Product> {
@@ -47,23 +60,20 @@ export class AppService {
       data: createProductDto
     });
     
-    // Invalidate the products cache
     await this.cacheManager.del('all_products');
-    
-    return product;
+    return this.transformProduct(product);
   }
 
   async updateProduct(id: number, updateData: Partial<Product>): Promise<Product> {
     const product = await this.prisma.product.update({
       where: { id },
-      data: updateData
+      data: updateData,
     });
     
-    // Invalidate the products cache
     await this.cacheManager.del('all_products');
     await this.cacheManager.del(`product_${id}`);
     
-    return product;
+    return this.transformProduct(product);
   }
 
   async checkStock(items: Array<{ productId: number; quantity: number }>): Promise<{

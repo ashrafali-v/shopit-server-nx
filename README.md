@@ -304,3 +304,6 @@ Services should now be available at:
    - Check Redis logs: `docker compose -f docker-compose-dev.yml logs redis`
    - Verify Redis port (6379) is not in use
    - Monitor memory usage: `docker exec shopit-server-nx-redis-1 redis-cli info memory`
+
+
+docker compose exec postgres psql -U postgres -d shopit -c "SELECT * FROM orders;"
