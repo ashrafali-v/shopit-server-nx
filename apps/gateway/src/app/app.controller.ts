@@ -1,10 +1,12 @@
-import { Controller, Post, Get, Body, Param, Inject, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Inject, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreateProductDto, Product, CreateOrderDto, Order, User, CreateUserDto } from '@shopit/shared';
-import { firstValueFrom, timeout } from 'rxjs';
+import { firstValueFrom, timeout, catchError } from 'rxjs';
 
 @Controller()
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(
     @Inject('PRODUCT_SERVICE') private readonly productService: ClientProxy,
     @Inject('ORDER_SERVICE') private readonly orderService: ClientProxy,
@@ -88,38 +90,73 @@ export class AppController {
   // Order endpoints
   @Post('orders')
   async createOrder(@Body() createOrderDto: CreateOrderDto): Promise<Order> {
+    this.logger.log('Starting order creation for user', createOrderDto.userId);
+    
     try {
-      console.log(`Gateway: Starting order creation for user ${createOrderDto.userId}`);
-      const result = await firstValueFrom(
-        this.orderService.send({ cmd: 'create_order' }, createOrderDto).pipe(
-          timeout(30000) // 30 second timeout to match RabbitMQ TTL
-        )
+      const order$ = this.orderService.send(
+        { cmd: 'create_order' },
+        createOrderDto
+      ).pipe(
+        timeout({
+          each: 10000,    // 10s for each operation
+          first: 5000,    // 5s for initial response
+          with: () => { throw new Error('Order service timed out') }
+        }),
+        catchError(err => {
+          this.logger.error('Order creation failed:', err);
+          if (err.message === 'Order service timed out') {
+            throw new HttpException(
+              'Order service is not responding. Please try again.',
+              HttpStatus.GATEWAY_TIMEOUT
+            );
+          }
+          throw new HttpException(
+            err.message || 'Failed to create order',
+            HttpStatus.INTERNAL_SERVER_ERROR
+          );
+        })
       );
-      console.log(`Gateway: Order created successfully`);
-      return result;
+
+      const order = await firstValueFrom(order$);
+      this.logger.log('Order created successfully:', order?.id);
+      return order;
     } catch (error) {
-      console.error(`Gateway: Order creation failed:`, error);
-      if (error.name === 'TimeoutError') {
-        throw new HttpException(
-          'Order service is not responding. Please try again.',
-          HttpStatus.GATEWAY_TIMEOUT
-        );
+      if (error instanceof HttpException) {
+        throw error;
       }
       throw new HttpException(
         error.message || 'Failed to create order',
-        error.status || HttpStatus.BAD_REQUEST
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
 
   @Get('orders')
   async getOrders(): Promise<Order[]> {
+    this.logger.log('GET /orders - Fetching all orders');
     try {
       return await firstValueFrom(
-        this.orderService.send({ cmd: 'get_orders' }, {})
+        this.orderService.send({ cmd: 'get_orders' }, {}).pipe(
+          timeout({
+            first: 5000,     // 5s for initial response
+            each: 10000,     // 10s for the operation
+            with: () => { throw new Error('Order service timed out') }
+          }),
+          catchError(err => {
+            this.logger.error('Failed to fetch orders:', err);
+            throw new HttpException(
+              err.message || 'Failed to fetch orders',
+              HttpStatus.INTERNAL_SERVER_ERROR
+            );
+          })
+        )
       );
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error('Error in getOrders:', error);
+      throw new HttpException(
+        error.message || 'Failed to fetch orders',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 

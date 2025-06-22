@@ -7,17 +7,7 @@ export const RABBITMQ_CONFIG = {
     deadLetter: 'dead_letter_queue'
   },
   queueOptions: {
-    durable: true,
-    arguments: {
-      'x-message-ttl': 30000,
-      'x-dead-letter-exchange': 'dead_letter_exchange',
-      'x-max-retries': 3
-    }
+    durable: true
   },
-  prefetchCount: 10,
-  socketOptions: {
-    heartbeatIntervalInSeconds: 5,
-    reconnectTimeInSeconds: 5
-  },
-  noAck: false
+  prefetchCount: 1
 };

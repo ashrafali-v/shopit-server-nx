@@ -3,7 +3,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { Order, OrderItem, CreateOrderDto, PrismaService } from '@shopit/shared';
 import { RmqContext } from '@nestjs/microservices/ctx-host';
 import { Channel, Message } from 'amqplib';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout, catchError } from 'rxjs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
@@ -75,29 +75,68 @@ export class AppService {
 
     try {
       this.logger.log(`Starting order creation process for user ${createOrderDto.userId}`);
+      this.logger.debug('Order details:', JSON.stringify(createOrderDto, null, 2));
 
       // Check product stock before creating order
       this.logger.debug('Checking product stock availability...');
       const stockCheckResult = await firstValueFrom(
-        this.productService.send({ cmd: 'check_stock' }, createOrderDto.items)
+        this.productService.send(
+          { cmd: 'check_stock' }, 
+          createOrderDto.items
+        ).pipe(
+          timeout({
+            first: 5000,     // 5s for initial response
+            each: 10000,     // 10s for the operation
+            with: () => { throw new Error('Stock check service timed out') }
+          }),
+          catchError(err => {
+            this.logger.error('Stock check failed:', err);
+            throw new Error('Failed to check product stock: ' + err.message);
+          })
+        )
       );
+      
+      if (!stockCheckResult) {
+        throw new Error('Stock check service did not respond');
+      }
+
+      this.logger.debug('Stock check response:', JSON.stringify(stockCheckResult, null, 2));
 
       if (!stockCheckResult.success) {
         const itemDetails = stockCheckResult.insufficientItems
           ?.map(item => `Product ${item.productId} (requested: ${item.requested}, available: ${item.available})`)
           .join(', ');
         this.logger.warn(`Stock check failed: ${itemDetails}`);
-        throw new Error(
-          `Insufficient stock for the following items: ${itemDetails}`
-        );
+        throw new Error(`Insufficient stock for the following items: ${itemDetails}`);
       }
+
       this.logger.debug('Stock check passed successfully');
 
       // Get product prices and calculate total amount
       this.logger.debug('Fetching product details for pricing...');
       const products = await firstValueFrom(
-        this.productService.send({ cmd: 'get_products' }, {})
+        this.productService.send({ cmd: 'get_products' }, {}).pipe(
+          timeout({
+            first: 5000,     // 5s for initial response
+            each: 10000,     // 10s for the operation
+            with: () => { throw new Error('Product service timed out') }
+          }),
+          catchError(err => {
+            this.logger.error('Get products failed:', err);
+            throw new Error('Failed to get product details: ' + err.message);
+          })
+        )
       );
+      
+      if (!products) {
+        throw new Error('Product service did not return any products');
+      }
+
+      if (!products || !Array.isArray(products)) {
+        throw new Error(`Invalid response from product service: ${JSON.stringify(products)}`);
+      }
+
+      this.logger.debug('Products received:', JSON.stringify(products, null, 2));
 
       const orderItems = createOrderDto.items.map(item => {
         const product = products.find(p => p.id === item.productId);
@@ -118,7 +157,7 @@ export class AppService {
 
       // Get user details and create order in a transaction
       this.logger.log(`Starting order creation for user ${createOrderDto.userId}`);
-      const { user, order } = await this.prisma.$transaction(async (tx) => {
+      const { order } = await this.prisma.$transaction(async (tx) => {
         // Get user details
         const user = await tx.user.findUnique({
           where: { id: createOrderDto.userId }
@@ -150,16 +189,42 @@ export class AppService {
 
       try {
         // Update product stock
-        this.logger.debug('Updating product stock...');
-        await firstValueFrom(
-          this.productService.send({ cmd: 'update_stock' }, {
-            items: order.items.map(item => ({
-              productId: item.productId,
-              quantity: item.quantity
-            })),
-            orderId: order.id
-          })
+        this.logger.debug('Updating product stock...', {
+          orderId: order.id,
+          items: order.items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          }))
+        });
+
+        const stockUpdateResult = await firstValueFrom(
+          this.productService.send(
+            { cmd: 'update_stock' },
+            {
+              items: order.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity
+              })),
+              orderId: order.id
+            }
+          ).pipe(
+            timeout({
+              first: 5000,     // 5s for initial response
+              each: 10000,     // 10s for the operation
+              with: () => { throw new Error('Stock update service timed out') }
+            }),
+            catchError(err => {
+              this.logger.error('Stock update failed:', err);
+              throw new Error('Failed to update product stock: ' + err.message);
+            })
+          )
         );
+
+        if (!stockUpdateResult || !stockUpdateResult.success) {
+          throw new Error('Failed to update product stock');
+        }
+
+        this.logger.debug('Stock update completed successfully');
 
         // Send order confirmation email
         // this.logger.debug('Sending order confirmation email...');

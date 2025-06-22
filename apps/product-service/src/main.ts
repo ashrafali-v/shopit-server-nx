@@ -19,9 +19,7 @@ async function bootstrap() {
         urls: [RABBITMQ_CONFIG.url],
         queue: RABBITMQ_CONFIG.queues.products,
         queueOptions: RABBITMQ_CONFIG.queueOptions,
-        noAck: RABBITMQ_CONFIG.noAck,
         prefetchCount: RABBITMQ_CONFIG.prefetchCount,
-        socketOptions: RABBITMQ_CONFIG.socketOptions
       },
     });
 

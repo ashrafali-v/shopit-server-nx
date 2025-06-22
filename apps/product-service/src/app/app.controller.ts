@@ -53,8 +53,9 @@ export class AppController {
       items: Array<{ productId: number; quantity: number }>;
       orderId: number;
     },
-  ): Promise<void> {
+  ): Promise<{ success: boolean }> {
     await this.appService.updateStock(data.items);
+    return { success: true };
   }
 
   private getRetryCount(msg: Message): number {

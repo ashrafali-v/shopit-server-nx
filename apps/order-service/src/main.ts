@@ -18,10 +18,12 @@ async function bootstrap() {
       options: {
         urls: [RABBITMQ_CONFIG.url],
         queue: RABBITMQ_CONFIG.queues.orders,
-        queueOptions: RABBITMQ_CONFIG.queueOptions,
-        noAck: RABBITMQ_CONFIG.noAck,
-        prefetchCount: RABBITMQ_CONFIG.prefetchCount,
-        socketOptions: RABBITMQ_CONFIG.socketOptions
+        queueOptions: {
+          ...RABBITMQ_CONFIG.queueOptions,
+          durable: true
+        },
+        prefetchCount: 1,  // Process one message at a time
+        noAck: false,      // Require explicit acknowledgment
       }
     });
 

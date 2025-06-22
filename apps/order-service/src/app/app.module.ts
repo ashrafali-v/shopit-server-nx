@@ -18,11 +18,9 @@ import { AppService } from './app.service';
         transport: Transport.RMQ,
         options: {
           urls: [RABBITMQ_CONFIG.url],
-          queue: RABBITMQ_CONFIG.queues.orders,
+          queue: 'notifications_queue', // Changed from orders queue to avoid declaration conflicts
           queueOptions: RABBITMQ_CONFIG.queueOptions,
-          noAck: RABBITMQ_CONFIG.noAck,
           prefetchCount: RABBITMQ_CONFIG.prefetchCount,
-          socketOptions: RABBITMQ_CONFIG.socketOptions
         }
       },
       {
@@ -32,9 +30,7 @@ import { AppService } from './app.service';
           urls: [RABBITMQ_CONFIG.url],
           queue: RABBITMQ_CONFIG.queues.products,
           queueOptions: RABBITMQ_CONFIG.queueOptions,
-          noAck: RABBITMQ_CONFIG.noAck,
           prefetchCount: RABBITMQ_CONFIG.prefetchCount,
-          socketOptions: RABBITMQ_CONFIG.socketOptions
         }
       }
     ]),
