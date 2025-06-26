@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Inject, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Inject, HttpException, HttpStatus, Logger, ForbiddenException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreateProductDto, Product, CreateOrderDto, Order, User, CreateUserDto } from '@shopit/shared';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
@@ -12,6 +12,14 @@ export class AppController {
     @Inject('ORDER_SERVICE') private readonly orderService: ClientProxy,
     @Inject('USER_SERVICE') private readonly userService: ClientProxy,
   ) {}
+
+  // Error handler for CSRF token validation
+  private handleCsrfError(error: Error & { code?: string }) {
+    if (error.code === 'EBADCSRFTOKEN') {
+      throw new ForbiddenException('Invalid CSRF token. Please try again.');
+    }
+    throw error;
+  }
 
   @Get()
   getApiInfo() {
@@ -34,6 +42,7 @@ export class AppController {
         this.productService.send({ cmd: 'create_product' }, createProductDto)
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
@@ -45,6 +54,7 @@ export class AppController {
         this.productService.send({ cmd: 'get_products' }, {})
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -60,6 +70,7 @@ export class AppController {
       }
       return product;
     } catch (error) {
+      this.handleCsrfError(error);
       if (error.status === HttpStatus.NOT_FOUND) {
         throw error;
       }
@@ -83,6 +94,7 @@ export class AppController {
         this.productService.send({ cmd: 'check_stock' }, items)
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
@@ -171,6 +183,7 @@ export class AppController {
       }
       return order;
     } catch (error) {
+      this.handleCsrfError(error);
       if (error.status === HttpStatus.NOT_FOUND) {
         throw error;
       }
@@ -188,6 +201,7 @@ export class AppController {
         )
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -200,6 +214,7 @@ export class AppController {
         this.userService.send({ cmd: 'create_user' }, createUserDto)
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
@@ -211,6 +226,7 @@ export class AppController {
         this.userService.send({ cmd: 'get_users' }, {})
       );
     } catch (error) {
+      this.handleCsrfError(error);
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -226,6 +242,7 @@ export class AppController {
       }
       return user;
     } catch (error) {
+      this.handleCsrfError(error);
       if (error.status === HttpStatus.NOT_FOUND) {
         throw error;
       }

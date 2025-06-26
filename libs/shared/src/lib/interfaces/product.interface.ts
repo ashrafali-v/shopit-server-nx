@@ -5,10 +5,3 @@ export interface Product {
   price: number;
   stock: number;
 }
-
-export interface CreateProductDto {
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-}

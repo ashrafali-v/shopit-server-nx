@@ -1,5 +1,6 @@
 import { IsArray, IsInt, IsNotEmpty, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Sanitize } from '../transformers/sanitize.transformer';
 
 export class OrderItemDto {
   @IsInt()
@@ -14,11 +15,13 @@ export class OrderItemDto {
 export class CreateOrderDto {
   @IsInt()
   @Min(1)
+  @Sanitize()
   userId!: number;
 
   @IsArray()
   @IsNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
+  @Sanitize()
   items!: OrderItemDto[];
 }
