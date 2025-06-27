@@ -28,9 +28,11 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=root
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=shopit
+      - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+    command: ["postgres", "-c", "password_encryption=scram-sha-256"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

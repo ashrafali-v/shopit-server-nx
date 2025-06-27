@@ -10,17 +10,20 @@ export class AppService {
     private prisma: PrismaService
   ) {}
 
-  private transformProduct(product: any): Product {
+  private transformProduct(product: Partial<Omit<Product, 'price'> & { price: number | { toString(): string } }>): Product {
     return {
-      id: product.id,
-      name: product.name,
-      description: product.description,
+      id: Number(product.id),
+      name: String(product.name),
+      description: String(product.description),
       price: Number(product.price),
-      stock: product.stock
+      stock: Number(product.stock),
+      category: String(product.category || 'general'),
+      createdAt: product.createdAt instanceof Date ? product.createdAt : new Date(),
+      updatedAt: product.updatedAt instanceof Date ? product.updatedAt : new Date()
     };
   }
 
-  private transformProducts(products: any[]): Product[] {
+  private transformProducts(products: Partial<Omit<Product, 'price'> & { price: number | { toString(): string } }>[]): Product[] {
     return products.map(product => this.transformProduct(product));
   }
 
