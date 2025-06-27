@@ -12,13 +12,14 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  name        String
   phoneNumber String? // Making it optional for existing users
-  orders    Order[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive    Boolean  @default(true) // New field: user account status
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("users")
 }
@@ -29,6 +30,7 @@ model Product {
   description String      @db.Text
   price       Decimal     @db.Decimal(10, 2)
   stock       Int
+  category    String      @default("general") // New field: product category
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]

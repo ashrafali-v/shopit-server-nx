@@ -14,6 +14,7 @@ async function main() {
     data: {
       name: 'John Doe',
       email: 'john@example.com',
+      isActive: true,
     },
   });
 
@@ -21,6 +22,7 @@ async function main() {
     data: {
       name: 'Jane Smith',
       email: 'jane@example.com',
+      isActive: true,
     },
   });
 
@@ -32,6 +34,7 @@ async function main() {
         description: 'High-performance laptop with latest specifications',
         price: 999.99,
         stock: 50,
+        category: 'electronics',
       },
     }),
     prisma.product.create({
@@ -40,6 +43,7 @@ async function main() {
         description: 'Latest model with advanced camera system',
         price: 699.99,
         stock: 100,
+        category: 'electronics',
       },
     }),
     prisma.product.create({
@@ -48,6 +52,7 @@ async function main() {
         description: 'Wireless noise-canceling headphones',
         price: 199.99,
         stock: 200,
+        category: 'accessories',
       },
     }),
   ]);

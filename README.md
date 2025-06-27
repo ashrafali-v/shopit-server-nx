@@ -305,5 +305,301 @@ Services should now be available at:
    - Verify Redis port (6379) is not in use
    - Monitor memory usage: `docker exec shopit-server-nx-redis-1 redis-cli info memory`
 
+## Database Migration Strategy
 
-docker compose exec postgres psql -U postgres -d shopit -c "SELECT * FROM orders;"
+This section outlines the database migration strategy for the ShopIt microservices platform using Prisma.
+
+### Migration Overview
+
+Our database schema is managed through Prisma and located in `libs/shared/prisma/schema.prisma`. All microservices share the same database schema through the shared library.
+
+#### Database Schema Structure
+
+- **Users**: Customer accounts and authentication
+- **Products**: Product catalog with inventory management
+- **Orders**: Order processing and status tracking
+- **OrderItems**: Individual items within orders with pricing history
+
+### Development Workflow
+
+#### 1. Local Development Migrations
+
+```bash
+# Create a new migration during development
+cd libs/shared
+npx prisma migrate dev --name your_migration_name
+
+# Reset database (development only)
+npx prisma migrate reset
+
+# Generate Prisma client after schema changes
+npx prisma generate
+```
+
+#### 2. Migration Best Practices
+
+##### ✅ Backward Compatible Changes
+
+```sql
+-- Adding optional columns
+ALTER TABLE users ADD COLUMN phone_number VARCHAR(20);
+
+-- Adding new tables
+CREATE TABLE notifications (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Adding indexes
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+```
+
+##### ⚠️ Breaking Changes (Multi-Phase Approach)
+
+```sql
+-- Phase 1: Add new column
+ALTER TABLE users ADD COLUMN full_name VARCHAR(255);
+
+-- Phase 2: Populate data (after app deployment)
+UPDATE users SET full_name = CONCAT(first_name, ' ', last_name);
+
+-- Phase 3: Drop old columns (next deployment)
+ALTER TABLE users DROP COLUMN first_name, DROP COLUMN last_name;
+```
+
+### Concrete Schema Change Example
+
+This example demonstrates adding new fields to existing models and how Prisma generates and tracks migrations.
+
+#### Example: Adding User Account Status and Product Categories
+
+**Step 1: Modify the Schema**
+
+```prisma
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  name        String
+  phoneNumber String? // Existing optional field
+  isActive    Boolean  @default(true) // NEW: user account status
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Product {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String      @db.Text
+  price       Decimal     @db.Decimal(10, 2)
+  stock       Int
+  category    String      @default("general") // NEW: product category
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+```
+
+**Step 2: Generate Migration**
+
+```bash
+cd libs/shared
+npx prisma migrate dev --name add_user_active_status_and_product_category
+```
+
+**Step 3: Generated Migration File**
+
+Prisma automatically creates a new migration file: `migrations/20250626234315_add_user_active_status_and_product_category/migration.sql`
+
+```sql
+-- AlterTable
+ALTER TABLE "products" ADD COLUMN     "category" TEXT NOT NULL DEFAULT 'general';
+
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN     "isActive" BOOLEAN NOT NULL DEFAULT true;
+```
+
+**Step 4: Update DTOs and Interfaces**
+
+```typescript
+// libs/shared/src/lib/dtos/create-user.dto.ts
+export class CreateUserDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  @Sanitize()
+  name!: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  @Sanitize()
+  email!: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean = true; // NEW field
+}
+
+// libs/shared/src/lib/dtos/create-product.dto.ts
+export class CreateProductDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  @Sanitize()
+  name!: string;
+
+  @IsString()
+  @MaxLength(1000)
+  @Sanitize()
+  description!: string;
+
+  @IsNumber()
+  @Min(0)
+  price!: number;
+
+  @IsNumber()
+  @Min(0)
+  stock!: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  @Sanitize()
+  category?: string = 'general'; // NEW field
+}
+```
+
+**Step 5: Update Seed File**
+
+```typescript
+// libs/shared/prisma/seed.ts
+const user1 = await prisma.user.create({
+  data: {
+    name: 'John Doe',
+    email: 'john@example.com',
+    isActive: true, // NEW field
+  },
+});
+
+const laptop = await prisma.product.create({
+  data: {
+    name: 'Laptop',
+    description: 'High-performance laptop with latest specifications',
+    price: 999.99,
+    stock: 50,
+    category: 'electronics', // NEW field
+  },
+});
+```
+
+**Step 6: Verify Migration**
+
+```bash
+# Check migration status
+npx prisma migrate status
+
+# Output:
+# 4 migrations found in prisma/migrations
+# Database schema is up to date!
+
+# Run seed to test new fields
+npx ts-node prisma/seed.ts
+
+# Output:
+# Seed data created successfully!
+```
+
+**Step 7: Build and Test**
+
+```bash
+# Build shared library with new types
+npx nx build shared
+
+# Test that microservices compile with new interfaces
+npx nx build gateway
+npx nx build product-service
+npx nx build user-service
+```
+
+#### Migration Results
+
+This schema change demonstrates several key concepts:
+
+1. **Non-breaking changes**: Both new fields have default values, making them backward-compatible
+2. **Automatic SQL generation**: Prisma generated appropriate `ALTER TABLE` statements
+3. **Type safety**: Updated DTOs and interfaces maintain type safety across the monorepo
+4. **Consistent data**: Seed file updated to include new fields for complete testing
+
+The migration files are tracked in version control and applied consistently across environments:
+
+```
+migrations/
+├── 0_init/
+│   └── migration.sql
+├── 20250615044159_init/
+│   └── migration.sql
+├── 20250616001535_test_16_06_2025_8_15/
+│   └── migration.sql
+└── 20250626234315_add_user_active_status_and_product_category/
+    └── migration.sql
+```
+
+Each migration builds upon the previous state, ensuring a reliable and traceable database evolution history.
+
+#### Using the New Fields in API Calls
+
+After deploying the schema changes, the new fields are immediately available in the API:
+
+**Creating a User with Account Status**
+
+```bash
+curl -X POST http://localhost:3000/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "isActive": true
+  }'
+```
+
+**Creating a Product with Category**
+
+```bash
+curl -X POST http://localhost:3000/products \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Wireless Mouse",
+    "description": "Ergonomic wireless mouse with precision tracking",
+    "price": 29.99,
+    "stock": 150,
+    "category": "accessories"
+  }'
+```
+
+**Filtering Products by Category**
+
+```bash
+# Get electronics products
+curl -X GET "http://localhost:3000/products?category=electronics"
+
+# Get accessories products
+curl -X GET "http://localhost:3000/products?category=accessories"
+```
+
+**Managing User Account Status**
+
+```bash
+# Deactivate a user account
+curl -X PATCH http://localhost:3000/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{"isActive": false}'
+
+# Get only active users
+curl -X GET "http://localhost:3000/users?isActive=true"
+```

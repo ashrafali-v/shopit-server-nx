@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsNotEmpty, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, MaxLength, MinLength, IsBoolean, IsOptional } from 'class-validator';
 import { Sanitize } from '../transformers/sanitize.transformer';
 
 export class CreateUserDto {
@@ -12,6 +12,10 @@ export class CreateUserDto {
   @IsNotEmpty()
   @Sanitize()
   email!: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean = true;
 
   // @IsString()
   // @IsNotEmpty()

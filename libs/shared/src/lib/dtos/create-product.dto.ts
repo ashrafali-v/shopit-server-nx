@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty, Min, MaxLength } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty, Min, MaxLength, IsOptional } from 'class-validator';
 import { Sanitize } from '../transformers/sanitize.transformer';
 
 export class CreateProductDto {
@@ -20,4 +20,10 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   stock!: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  @Sanitize()
+  category?: string = 'general';
 }
