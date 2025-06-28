@@ -36,7 +36,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d shopit"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shopit"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  mailpit:
+    image: axllent/mailpit:latest
+    platform: linux/arm64
+    ports:
+      - "1026:1025"  # SMTP server port (mapped to different host port)
+      - "8026:8025"  # Web UI port (mapped to different host port)
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_DATABASE: "/data/mailpit.db"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+    command: ["--smtp-auth-allow-insecure"]
+    volumes:
+      - mailpit_data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "1025"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -45,3 +64,5 @@ volumes:
   rabbitmq_data:
   redis_data:
   postgres_data:
+  mailpit_data:
+  # Explicitly name volumes for better clarity

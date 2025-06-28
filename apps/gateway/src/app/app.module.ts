@@ -45,6 +45,16 @@ import { LoggerMiddleware } from './middleware/logger.middleware';
           prefetchCount: RABBITMQ_CONFIG.prefetchCount
         },
       },
+      {
+        name: 'NOTIFICATION_SERVICE',
+        transport: Transport.RMQ,
+        options: {
+          urls: [RABBITMQ_CONFIG.url],
+          queue: RABBITMQ_CONFIG.queues.notifications,
+          queueOptions: RABBITMQ_CONFIG.queueOptions,
+          prefetchCount: RABBITMQ_CONFIG.prefetchCount
+        },
+      },
     ]),
   ],
   controllers: [AppController],

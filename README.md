@@ -39,7 +39,7 @@ pnpm install
 2. Start Infrastructure Services
 
 ```bash
-# Start RabbitMQ and Redis containers
+# Start all containers
 docker compose -f docker-compose-dev.yml up -d
 
 # Verify services are running
@@ -61,6 +61,23 @@ Redis:
 - Health Check: Enabled (5s interval)
 - Persistence: Enabled (data directory mounted)
 
+Mailpit (Email Testing):
+
+- SMTP Port: 1025 (for sending emails)
+- Web UI: http://localhost:8025 (for viewing sent emails)
+- Persistence: Enabled (SQLite storage)
+- Health Check: Enabled (5s interval)
+- No authentication required in development
+- Modern web interface with search capabilities
+- Configuration in .env:
+  ```env
+  # SMTP Configuration (Mailpit for development)
+  SMTP_HOST=localhost
+  SMTP_PORT=1025
+  SMTP_FROM=noreply@shopit.com
+  # SMTP_USER and SMTP_PASS are only needed in production
+  ```
+
 3. Start the Microservices
 
 ```bash
@@ -72,6 +89,7 @@ npx nx serve gateway
 npx nx serve product-service
 npx nx serve order-service
 npx nx serve user-service
+npx nx serve notification-service
 ```
 
 The API Gateway will be available at http://localhost:3000

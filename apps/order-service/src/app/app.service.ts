@@ -226,21 +226,31 @@ export class AppService {
 
         this.logger.debug('Stock update completed successfully');
 
-        // Send order confirmation email
-        // this.logger.debug('Sending order confirmation email...');
-        // await firstValueFrom(
-        //   this.notificationClient.emit('order_confirmation_email', {
-        //     orderId: order.id,
-        //     customerName: user.name,
-        //     email: user.email,
-        //     items: order.items.map(item => ({
-        //       productId: item.productId,
-        //       quantity: item.quantity,
-        //       price: Number(item.price)
-        //     })),
-        //     totalAmount: Number(totalAmount)
-        //   })
-        // );
+        // Get user data for notification
+        const user = await this.prisma.user.findUnique({
+          where: { id: order.userId },
+          select: { name: true, email: true }
+        });
+
+        if (!user) {
+          this.logger.warn(`User not found for order ${order.id}, skipping notification`);
+        } else {
+          // Send order confirmation email
+          this.logger.debug('Sending order confirmation email...');
+          await firstValueFrom(
+            this.notificationClient.emit('order_confirmation_email', {
+              orderId: order.id,
+              customerName: user.name,
+              email: user.email,
+              items: order.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: Number(item.price)
+              })),
+              totalAmount: Number(totalAmount)
+            })
+          );
+        }
 
         // Update order status to completed after stock update and email
         this.logger.log(`Updating order status to completed: ${order.id}`);

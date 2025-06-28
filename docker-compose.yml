@@ -29,7 +29,21 @@ services:
     volumes:
       - redis_data:/data
 
+  mailpit:
+    image: axllent/mailpit:latest
+    platform: linux/arm64
+    ports:
+      - "1025:1025"  # SMTP server port
+      - "8025:8025"  # Web UI port
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_DATA_FILE: "/data/mailpit.db"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+    volumes:
+      - mailpit_data:/data
+
 volumes:
   rabbitmq_data:
   postgres_data:
   redis_data:
+  mailpit_data:

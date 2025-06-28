@@ -1,21 +1,28 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { RABBITMQ_CONFIG } from '@shopit/shared';
 import { AppModule } from './app/app.module';
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.RMQ,
     options: {
-      urls: [process.env.RABBITMQ_URL || 'amqp://localhost:5672'],
-      queue: 'notifications_queue',
+      urls: [RABBITMQ_CONFIG.url],
+      queue: RABBITMQ_CONFIG.queues.notifications,
+      noAck: false,
+      prefetchCount: RABBITMQ_CONFIG.prefetchCount,
       queueOptions: {
-        durable: true,
-        deadLetterExchange: 'dead_letter_exchange',
-        deadLetterRoutingKey: 'dead_letter_queue',
-        messageTtl: 60000 // 1 minute
+        ...RABBITMQ_CONFIG.queueOptions,
+        arguments: {
+          'x-dead-letter-exchange': 'dead_letter_exchange',
+          'x-dead-letter-routing-key': 'dead_letter_queue'
+        }
       },
-      prefetchCount: 1,
+      socketOptions: {
+        heartbeatIntervalInSeconds: 60,
+        reconnectTimeInSeconds: 5
+      }
     },
   });
 
