@@ -73,7 +73,7 @@ Mailpit (Email Testing):
   ```env
   # SMTP Configuration (Mailpit for development)
   SMTP_HOST=localhost
-  SMTP_PORT=1025
+  SMTP_PORT=1026
   SMTP_FROM=noreply@shopit.com
   # SMTP_USER and SMTP_PASS are only needed in production
   ```

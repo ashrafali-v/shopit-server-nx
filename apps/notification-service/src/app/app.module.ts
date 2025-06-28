@@ -54,7 +54,7 @@ import * as path from 'path';
             from: process.env.SMTP_FROM || 'noreply@shopit.com',
           },
           template: {
-            dir: path.join(__dirname, 'templates'),
+            dir: path.join(__dirname, 'email/templates'), // Changed from 'templates' to 'email/templates'
             adapter: new HandlebarsAdapter({
               multiply: (a: string | number, b: string | number) => Number(a) * Number(b)
             }),

@@ -17,9 +17,9 @@
         "assets": [
           "apps/notification-service/src/assets",
           {
-            "input": "apps/notification-service/src/app/templates",
-            "glob": "**/*",
-            "output": "templates"
+            "glob": "**/*.hbs",
+            "input": "apps/notification-service/src/app/email/templates",
+            "output": "email/templates"
           }
         ],
         "isolatedConfig": true,
