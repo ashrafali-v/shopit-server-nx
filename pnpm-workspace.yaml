@@ -1,0 +1,5 @@
+# pnpm workspace configuration
+# Note: previously, ignoredBuiltDependencies were set by an interactive approve step
+# which prevented native builds (SWC/Prisma) from running. We intentionally remove
+# that list so postinstall/build scripts can run when needed.
+
