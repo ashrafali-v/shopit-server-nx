@@ -55,6 +55,24 @@ async function main() {
         category: 'accessories',
       },
     }),
+    prisma.product.create({
+      data: {
+        name: 'Wireless Mouse',
+        description: 'Ergonomic wireless mouse with precision tracking',
+        price: 49.99,
+        stock: 150,
+        category: 'accessories',
+      },
+    }),
+    prisma.product.create({
+      data: {
+        name: 'Mechanical Keyboard',
+        description: 'RGB mechanical keyboard with cherry switches',
+        price: 129.99,
+        stock: 75,
+        category: 'accessories',
+      },
+    }),
   ]);
 
   // Create Orders with Order Items
@@ -97,7 +115,60 @@ async function main() {
     },
   });
 
+  await prisma.order.create({
+    data: {
+      userId: user1.id,
+      totalAmount: 229.97,
+      status: 'pending',
+      items: {
+        create: [
+          {
+            productId: products[3].id, // Wireless Mouse
+            quantity: 2,
+            price: 49.99,
+          },
+          {
+            productId: products[4].id, // Mechanical Keyboard
+            quantity: 1,
+            price: 129.99,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.order.create({
+    data: {
+      userId: user2.id,
+      totalAmount: 1829.96,
+      status: 'completed',
+      items: {
+        create: [
+          {
+            productId: products[0].id, // Laptop
+            quantity: 1,
+            price: 999.99,
+          },
+          {
+            productId: products[1].id, // Smartphone
+            quantity: 1,
+            price: 699.99,
+          },
+          {
+            productId: products[4].id, // Mechanical Keyboard
+            quantity: 1,
+            price: 129.99,
+          },
+        ],
+      },
+    },
+  });
+
   console.log('Seed data created successfully!');
+  console.log(`Created ${await prisma.user.count()} users`);
+  console.log(`Created ${await prisma.product.count()} products`);
+  console.log(`Created ${await prisma.order.count()} orders`);
+  console.log(`Created ${await prisma.orderItem.count()} order items`);
 }
 
 main()
