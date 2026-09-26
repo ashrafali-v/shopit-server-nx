@@ -16,6 +16,7 @@ Infrastructure:
 
 - **RabbitMQ**: Message broker for inter-service communication
 - **Redis**: Distributed caching layer for improved performance
+- **OpenTelemetry + Jaeger**: Distributed tracing across HTTP, RabbitMQ, and database operations
 
 ## Prerequisites
 
@@ -77,6 +78,27 @@ Mailpit (Email Testing):
   SMTP_FROM=noreply@shopit.com
   # SMTP_USER and SMTP_PASS are only needed in production
   ```
+
+Observability tracing:
+
+- Jaeger UI: http://localhost:16686
+- OTLP HTTP endpoint: http://localhost:4318
+- Each service loads OpenTelemetry before NestJS starts
+- Service names can be overridden with `OTEL_SERVICE_NAME`
+
+Start Jaeger with the development infrastructure:
+
+```bash
+docker compose -f docker-compose-dev.yml up -d jaeger
+```
+
+The services send traces to Jaeger by default. To use another OTLP-compatible
+backend, set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, for example:
+
+```env
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://your-collector.example/v1/traces
+OTEL_SERVICE_NAME=product-service
+```
 
 3. Start the Microservices
 
