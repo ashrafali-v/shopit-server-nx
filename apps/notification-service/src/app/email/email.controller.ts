@@ -1,14 +1,14 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Ctx, RmqContext, Payload } from '@nestjs/microservices';
 import { Channel, Message } from 'amqplib';
-import { EmailService } from './email.service';
+import { EmailQueueService } from './email-queue.service';
 import { OrderConfirmationEmailEvent } from './interfaces/email.interface';
 
 @Controller()
 export class EmailController {
   private readonly logger = new Logger(EmailController.name);
 
-  constructor(private readonly emailService: EmailService) {}
+  constructor(private readonly emailQueueService: EmailQueueService) {}
 
   @EventPattern('order_confirmation_email')
   async handleOrderConfirmationEmail(@Payload() data: OrderConfirmationEmailEvent, @Ctx() ctx: RmqContext) {
@@ -22,26 +22,13 @@ export class EmailController {
         throw new Error('Invalid message payload: missing required fields');
       }
 
-      await this.emailService.sendOrderConfirmation(data);
+      const jobId = await this.emailQueueService.enqueueOrderConfirmation(data);
       await channel.ack(originalMsg);
-      this.logger.log(`Order confirmation email event handled for order #${data.orderId}`);
+      this.logger.log(`Queued order confirmation email for order #${data.orderId} (job ${jobId})`);
     } catch (error) {
-      const retryCount = this.getRetryCount(originalMsg);
-      this.logger.error(`Failed to handle order confirmation email (attempt ${retryCount + 1}):`, error);
+      this.logger.error(`Failed to queue order confirmation email for order #${data?.orderId || 'unknown'}:`, error);
       this.logger.debug('Message payload:', JSON.stringify(data));
-
-      if (retryCount < 3) {
-        await channel.nack(originalMsg, false, true);
-      } else {
-        this.logger.error(`Max retries reached for order confirmation email #${data?.orderId || 'unknown'}`);
-        await channel.nack(originalMsg, false, false);
-      }
+      await channel.nack(originalMsg, false, false);
     }
-  }
-
-  private getRetryCount(msg: Message): number {
-    const deaths = msg.properties.headers['x-death'];
-    if (!deaths) return 0;
-    return deaths[0]?.count || 0;
   }
 }

@@ -79,6 +79,17 @@ Mailpit (Email Testing):
   # SMTP_USER and SMTP_PASS are only needed in production
   ```
 
+Email delivery uses BullMQ with Redis. The notification service puts order confirmation emails on the `email-delivery` queue, then a sandboxed Node worker thread renders and sends them through SMTP. Failed sends are retried up to five times with exponential backoff.
+
+Start Redis and Mailpit, then run the notification worker:
+
+```bash
+docker compose -f docker-compose-dev.yml up -d redis mailpit rabbitmq
+npx nx serve notification-service
+```
+
+Order confirmation emails received by Mailpit can be viewed at http://localhost:8026.
+
 Observability tracing:
 
 - Jaeger UI: http://localhost:16686
