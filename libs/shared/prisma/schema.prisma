@@ -34,6 +34,7 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+  internalNote String?
 
   @@map("products")
 }
