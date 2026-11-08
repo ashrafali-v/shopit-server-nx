@@ -2,13 +2,16 @@ import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ScheduleModule } from '@nestjs/schedule';
 import * as redisStore from 'cache-manager-redis-yet';
 import { PrismaService, RABBITMQ_CONFIG } from '@shopit/shared';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ReportsService } from './reports.service';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true
     }),
@@ -42,6 +45,6 @@ import { AppService } from './app.service';
     })
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService]
+  providers: [AppService, PrismaService, ReportsService]
 })
 export class AppModule {}
